@@ -1,6 +1,6 @@
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
 
-const VALID_REPORTS = new Set(['overview', 'acquisition', 'pages']);
+const VALID_REPORTS = new Set(['overview', 'acquisition', 'pages', 'facebook']);
 
 function getClient() {
   const clientEmail = process.env.GA4_CLIENT_EMAIL;
@@ -44,12 +44,27 @@ async function runOverview(client, propertyId, dateRange) {
     metrics: [
       { name: 'sessions' },
       { name: 'activeUsers' },
+      { name: 'newUsers' },
       { name: 'engagementRate' },
       { name: 'averageSessionDuration' },
+      { name: 'screenPageViews' },
+      { name: 'screenPageViewsPerSession' },
+      { name: 'bounceRate' },
+      { name: 'conversions' },
     ],
     orderBys: [{ dimension: { dimensionName: 'date' } }],
   });
-  return rowsToObjects(response, ['date'], ['sessions', 'activeUsers', 'engagementRate', 'avgSessionDuration']);
+  return rowsToObjects(response, ['date'], [
+    'sessions',
+    'activeUsers',
+    'newUsers',
+    'engagementRate',
+    'avgSessionDuration',
+    'pageViews',
+    'pageViewsPerSession',
+    'bounceRate',
+    'conversions',
+  ]);
 }
 
 async function runAcquisition(client, propertyId, dateRange) {
@@ -57,10 +72,16 @@ async function runAcquisition(client, propertyId, dateRange) {
     property: `properties/${propertyId}`,
     dateRanges: [dateRange],
     dimensions: [{ name: 'sessionDefaultChannelGroup' }],
-    metrics: [{ name: 'sessions' }, { name: 'activeUsers' }, { name: 'conversions' }],
+    metrics: [
+      { name: 'sessions' },
+      { name: 'activeUsers' },
+      { name: 'newUsers' },
+      { name: 'conversions' },
+      { name: 'engagementRate' },
+    ],
     orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
   });
-  return rowsToObjects(response, ['channel'], ['sessions', 'activeUsers', 'conversions']);
+  return rowsToObjects(response, ['channel'], ['sessions', 'activeUsers', 'newUsers', 'conversions', 'engagementRate']);
 }
 
 async function runPages(client, propertyId, dateRange) {
@@ -73,6 +94,40 @@ async function runPages(client, propertyId, dateRange) {
     limit: 20,
   });
   return rowsToObjects(response, ['path', 'title'], ['pageViews', 'activeUsers']);
+}
+
+async function runFacebook(client, propertyId, dateRange) {
+  // Meta (Facebook/Instagram Ads) finisce nel canale GA4 "Paid Social" con
+  // sessionSource "fb"/"ig" e sessionCampaignName pari all'ID numerico della
+  // campagna Meta (non un nome leggibile), quindi filtriamo sul channel group.
+  const paidSocialFilter = {
+    filter: {
+      fieldName: 'sessionDefaultChannelGroup',
+      stringFilter: { matchType: 'EXACT', value: 'Paid Social' },
+    },
+  };
+
+  const [response] = await client.runReport({
+    property: `properties/${propertyId}`,
+    dateRanges: [dateRange],
+    dimensions: [{ name: 'sessionCampaignName' }, { name: 'sessionSource' }],
+    metrics: [
+      { name: 'sessions' },
+      { name: 'activeUsers' },
+      { name: 'newUsers' },
+      { name: 'conversions' },
+      { name: 'engagementRate' },
+      { name: 'averageSessionDuration' },
+      { name: 'bounceRate' },
+    ],
+    dimensionFilter: paidSocialFilter,
+    orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+  });
+  return rowsToObjects(
+    response,
+    ['campaign', 'source'],
+    ['sessions', 'activeUsers', 'newUsers', 'conversions', 'engagementRate', 'avgSessionDuration', 'bounceRate']
+  );
 }
 
 export default async function handler(req, res) {
@@ -103,6 +158,7 @@ export default async function handler(req, res) {
     let data;
     if (report === 'overview') data = await runOverview(client, propertyId, dateRange);
     else if (report === 'acquisition') data = await runAcquisition(client, propertyId, dateRange);
+    else if (report === 'facebook') data = await runFacebook(client, propertyId, dateRange);
     else data = await runPages(client, propertyId, dateRange);
 
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=60');

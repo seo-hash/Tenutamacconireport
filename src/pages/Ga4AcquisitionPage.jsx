@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { fetchGa4Report, Ga4ServiceError } from '../ga4Service';
 import DateRangePicker from '../components/DateRangePicker';
 import Ga4SourceBarChart from '../components/ga4/Ga4SourceBarChart';
+import Ga4AcquisitionKpiGrid from '../components/ga4/Ga4AcquisitionKpiGrid';
 import ErrorPanel from '../components/ErrorPanel';
 import Loader from '../components/Loader';
 
@@ -37,7 +38,12 @@ export default function Ga4AcquisitionPage() {
       {error && <ErrorPanel error={error} source="ga4" />}
       {loading && <Loader />}
 
-      {!loading && !error && rows.length > 0 && <Ga4SourceBarChart rows={rows} />}
+      {!loading && !error && rows.length > 0 && (
+        <>
+          <Ga4AcquisitionKpiGrid rows={rows} />
+          <Ga4SourceBarChart rows={rows} />
+        </>
+      )}
 
       {!loading && !error && rows.length === 0 && (
         <p className="text-sm text-[var(--text-secondary)]">Nessun dato disponibile per il periodo selezionato.</p>

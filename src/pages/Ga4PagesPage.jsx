@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { fetchGa4Report, Ga4ServiceError } from '../ga4Service';
 import DateRangePicker from '../components/DateRangePicker';
 import Ga4TopPagesTable from '../components/ga4/Ga4TopPagesTable';
+import Ga4TopPagesBarChart from '../components/ga4/Ga4TopPagesBarChart';
+import Ga4PagesKpiGrid from '../components/ga4/Ga4PagesKpiGrid';
 import ErrorPanel from '../components/ErrorPanel';
 import Loader from '../components/Loader';
 
@@ -37,6 +39,12 @@ export default function Ga4PagesPage() {
       {error && <ErrorPanel error={error} source="ga4" />}
       {loading && <Loader />}
 
+      {!loading && !error && rows.length > 0 && (
+        <>
+          <Ga4PagesKpiGrid rows={rows} />
+          <Ga4TopPagesBarChart rows={rows} />
+        </>
+      )}
       {!loading && !error && <Ga4TopPagesTable rows={rows} />}
     </div>
   );

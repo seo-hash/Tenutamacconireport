@@ -1,6 +1,7 @@
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
+import { isAuthenticated } from './_auth.js';
 
-const VALID_REPORTS = new Set(['overview', 'acquisition', 'pages', 'facebook']);
+const VALID_REPORTS = new Set(['overview', 'acquisition', 'pages', 'facebook', 'facebook_daily']);
 
 function getClient() {
   const clientEmail = process.env.GA4_CLIENT_EMAIL;
@@ -130,7 +131,36 @@ async function runFacebook(client, propertyId, dateRange) {
   );
 }
 
+async function runFacebookDaily(client, propertyId, dateRange) {
+  const paidSocialFilter = {
+    filter: {
+      fieldName: 'sessionDefaultChannelGroup',
+      stringFilter: { matchType: 'EXACT', value: 'Paid Social' },
+    },
+  };
+
+  const [response] = await client.runReport({
+    property: `properties/${propertyId}`,
+    dateRanges: [dateRange],
+    dimensions: [{ name: 'date' }],
+    metrics: [{ name: 'sessions' }, { name: 'conversions' }],
+    dimensionFilter: paidSocialFilter,
+    orderBys: [{ dimension: { dimensionName: 'date' } }],
+  });
+  const rows = rowsToObjects(response, ['date'], ['sessions', 'conversions']);
+  // GA4 restituisce le date come stringa "YYYYMMDD": le riformattiamo in ISO.
+  return rows.map((r) => ({
+    ...r,
+    date: `${r.date.slice(0, 4)}-${r.date.slice(4, 6)}-${r.date.slice(6, 8)}`,
+  }));
+}
+
 export default async function handler(req, res) {
+  if (!isAuthenticated(req)) {
+    res.status(401).json({ error: 'Non autenticato.' });
+    return;
+  }
+
   const { report, from, to } = req.query;
 
   if (!VALID_REPORTS.has(report)) {
@@ -159,6 +189,7 @@ export default async function handler(req, res) {
     if (report === 'overview') data = await runOverview(client, propertyId, dateRange);
     else if (report === 'acquisition') data = await runAcquisition(client, propertyId, dateRange);
     else if (report === 'facebook') data = await runFacebook(client, propertyId, dateRange);
+    else if (report === 'facebook_daily') data = await runFacebookDaily(client, propertyId, dateRange);
     else data = await runPages(client, propertyId, dateRange);
 
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=60');

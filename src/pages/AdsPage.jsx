@@ -8,6 +8,8 @@ import {
   groupByReportDate,
   groupByCampaign,
   groupByActionType,
+  filterByActionKeyword,
+  LANDING_PAGE_VIEW_KEYWORDS,
 } from '../utils/metrics';
 import { formatDate } from '../utils/format';
 
@@ -25,6 +27,7 @@ import Loader from '../components/Loader';
 import Ga4FacebookKpiGrid from '../components/ga4/Ga4FacebookKpiGrid';
 import Ga4FacebookSpendKpiGrid from '../components/ga4/Ga4FacebookSpendKpiGrid';
 import Ga4FacebookCampaignsTable from '../components/ga4/Ga4FacebookCampaignsTable';
+import Ga4MetaComparisonSection from '../components/ga4/Ga4MetaComparisonSection';
 
 const CSV_URL = import.meta.env.VITE_CSV_URL || '';
 
@@ -46,6 +49,8 @@ export default function AdsPage() {
   const [ga4DateRange, setGa4DateRange] = useState(null);
   const [ga4From, setGa4From] = useState(null);
   const [ga4To, setGa4To] = useState(null);
+
+  const [ga4DailyRows, setGa4DailyRows] = useState([]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -91,14 +96,19 @@ export default function AdsPage() {
     setGa4Loading(true);
     setGa4Error(null);
     try {
-      const { data, dateRange } = await fetchGa4Report('facebook', { from: ga4From, to: ga4To });
+      const [{ data, dateRange }, { data: dailyData }] = await Promise.all([
+        fetchGa4Report('facebook', { from: ga4From, to: ga4To }),
+        fetchGa4Report('facebook_daily', { from: ga4From, to: ga4To }),
+      ]);
       if (requestId !== ga4RequestIdRef.current) return; // risposta obsoleta, ignorata
       setGa4Rows(data);
       setGa4DateRange(dateRange);
+      setGa4DailyRows(dailyData);
     } catch (err) {
       if (requestId !== ga4RequestIdRef.current) return;
       setGa4Error(err instanceof Ga4ServiceError ? err : new Ga4ServiceError('unknown', err.message));
       setGa4Rows([]);
+      setGa4DailyRows([]);
     } finally {
       if (requestId === ga4RequestIdRef.current) setGa4Loading(false);
     }
@@ -125,10 +135,30 @@ export default function AdsPage() {
 
   const anomalousRowNumbers = useMemo(() => new Set(anomalies.map((a) => a.rowNumber)), [anomalies]);
 
-  const ga4PeriodSpend = useMemo(() => {
-    const filtered = filterRecords(records, { from: ga4From, to: ga4To, campaigns: [], status: 'all' });
-    return aggregateTotals(filtered, DEFAULT_SPEND_SOURCE).spend;
-  }, [records, ga4From, ga4To]);
+  const ga4PeriodRecords = useMemo(
+    () => filterRecords(records, { from: ga4From, to: ga4To, campaigns: [], status: 'all' }),
+    [records, ga4From, ga4To]
+  );
+
+  const ga4PeriodSpend = useMemo(
+    () => aggregateTotals(ga4PeriodRecords, DEFAULT_SPEND_SOURCE).spend,
+    [ga4PeriodRecords]
+  );
+
+  // Landing page view (Meta Ads) per giorno, nello stesso periodo del filtro
+  // GA4: è la metrica più vicina a una sessione reale (esclude i click che
+  // non arrivano a caricare la pagina). Se il foglio non riporta righe con
+  // questo action type, si usano tutti i risultati (tipicamente click sul
+  // link) come fallback, segnalato in dashboard.
+  const metaLandingPageViewRecords = useMemo(
+    () => filterByActionKeyword(ga4PeriodRecords, LANDING_PAGE_VIEW_KEYWORDS),
+    [ga4PeriodRecords]
+  );
+  const metaLandingViewFallback = metaLandingPageViewRecords.length === 0 && ga4PeriodRecords.length > 0;
+  const metaDailyLandingViews = useMemo(
+    () => groupByReportDate(metaLandingViewFallback ? ga4PeriodRecords : metaLandingPageViewRecords, DEFAULT_SPEND_SOURCE),
+    [metaLandingViewFallback, ga4PeriodRecords, metaLandingPageViewRecords]
+  );
 
   const ga4Totals = useMemo(
     () =>
@@ -216,6 +246,14 @@ export default function AdsPage() {
             )}
             {!ga4Loading && !ga4Error && <Ga4FacebookCampaignsTable rows={ga4Rows} />}
           </div>
+
+          {!ga4Loading && !ga4Error && (
+            <Ga4MetaComparisonSection
+              metaDaily={metaDailyLandingViews}
+              ga4Daily={ga4DailyRows}
+              usingFallbackMetric={metaLandingViewFallback}
+            />
+          )}
         </>
       )}
 

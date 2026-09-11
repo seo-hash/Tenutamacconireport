@@ -2,10 +2,13 @@ import { useEffect, useState } from 'react';
 import logo from './assets/logo.png';
 
 import NavTabs from './components/NavTabs';
+import Loader from './components/Loader';
+import LoginPage from './pages/LoginPage';
 import AdsPage from './pages/AdsPage';
 import Ga4OverviewPage from './pages/Ga4OverviewPage';
 import Ga4AcquisitionPage from './pages/Ga4AcquisitionPage';
 import Ga4PagesPage from './pages/Ga4PagesPage';
+import { checkSession, logout } from './authService';
 
 const TABS = [
   { key: 'ads', label: 'Facebook Ads', Component: AdsPage },
@@ -17,10 +20,32 @@ const TABS = [
 export default function App() {
   const [activeTab, setActiveTab] = useState('ads');
   const [dark, setDark] = useState(() => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false);
+  const [authStatus, setAuthStatus] = useState('checking'); // 'checking' | 'authenticated' | 'anonymous'
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
   }, [dark]);
+
+  useEffect(() => {
+    checkSession().then((authenticated) => setAuthStatus(authenticated ? 'authenticated' : 'anonymous'));
+  }, []);
+
+  const handleLogout = async () => {
+    await logout();
+    setAuthStatus('anonymous');
+  };
+
+  if (authStatus === 'checking') {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader />
+      </div>
+    );
+  }
+
+  if (authStatus === 'anonymous') {
+    return <LoginPage onSuccess={() => setAuthStatus('authenticated')} />;
+  }
 
   return (
     <div className="min-h-screen">
@@ -33,12 +58,20 @@ export default function App() {
               Marketing Dashboard <span className="text-[var(--brand)]">·</span> Tenuta Macconi
             </h1>
           </div>
-          <button
-            onClick={() => setDark((d) => !d)}
-            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-2)]"
-          >
-            {dark ? '☀️ Chiaro' : '🌙 Scuro'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setDark((d) => !d)}
+              className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-2)]"
+            >
+              {dark ? '☀️ Chiaro' : '🌙 Scuro'}
+            </button>
+            <button
+              onClick={handleLogout}
+              className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-2)]"
+            >
+              Esci
+            </button>
+          </div>
         </div>
         <div className="mx-auto max-w-7xl px-4 pb-3">
           <NavTabs tabs={TABS} active={activeTab} onChange={setActiveTab} />

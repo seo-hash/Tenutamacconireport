@@ -64,6 +64,21 @@ export function aggregateTotals(records, spendSource) {
   };
 }
 
+// Riconosce le righe del foglio il cui "tipo_azione" corrisponde a una delle
+// etichette Meta indicate (case-insensitive, match parziale) — es. per
+// isolare le "Visualizzazioni della pagina di destinazione" (landing page
+// view) dai "Clic sul link" quando il foglio esporta più action type.
+export function filterByActionKeyword(records, keywords) {
+  const needles = keywords.map((k) => k.toLowerCase());
+  return records.filter((r) => {
+    const label = (r.tipo_azione || '').toLowerCase();
+    return needles.some((n) => label.includes(n));
+  });
+}
+
+export const LANDING_PAGE_VIEW_KEYWORDS = ['pagina di destinazione', 'landing page view', 'landing_page_view'];
+export const LINK_CLICK_KEYWORDS = ['clic sul link', 'click sul link', 'link click', 'link_click'];
+
 export function groupByReportDate(records, spendSource) {
   const map = new Map();
   for (const r of records) {

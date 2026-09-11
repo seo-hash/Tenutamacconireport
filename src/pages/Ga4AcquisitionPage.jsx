@@ -3,6 +3,7 @@ import { fetchGa4Report, Ga4ServiceError } from '../ga4Service';
 import DateRangePicker from '../components/DateRangePicker';
 import Ga4SourceBarChart from '../components/ga4/Ga4SourceBarChart';
 import Ga4AcquisitionKpiGrid from '../components/ga4/Ga4AcquisitionKpiGrid';
+import Ga4ReferralWatchlist from '../components/ga4/Ga4ReferralWatchlist';
 import ErrorPanel from '../components/ErrorPanel';
 import Loader from '../components/Loader';
 
@@ -34,6 +35,8 @@ export default function Ga4AcquisitionPage() {
   return (
     <div className="space-y-4">
       <DateRangePicker from={from} to={to} onFromChange={setFrom} onToChange={setTo} onRefresh={loadData} loading={loading} />
+
+      <Ga4ReferralWatchlist />
 
       {error && <ErrorPanel error={error} source="ga4" />}
       {loading && <Loader />}

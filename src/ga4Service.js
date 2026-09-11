@@ -5,7 +5,7 @@ export class Ga4ServiceError extends Error {
   }
 }
 
-const VALID_REPORTS = ['overview', 'acquisition', 'pages', 'facebook'];
+const VALID_REPORTS = ['overview', 'acquisition', 'pages', 'facebook', 'facebook_daily'];
 
 /**
  * Chiama la function serverless /api/ga4, che interroga la GA4 Data API

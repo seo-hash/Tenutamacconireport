@@ -12,11 +12,21 @@ export class DataServiceError extends Error {
 function parseIsoDate(raw) {
   if (!raw) return null;
   const str = String(raw).trim();
-  const m = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+
+  let m = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (m) {
     const [, y, mo, d] = m;
     return new Date(Number(y), Number(mo) - 1, Number(d));
   }
+
+  // Google Sheets può esportare le date in formato italiano GG/MM/AAAA
+  // (o GG-MM-AAAA) a seconda della localizzazione del foglio.
+  m = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (m) {
+    const [, d, mo, y] = m;
+    return new Date(Number(y), Number(mo) - 1, Number(d));
+  }
+
   const d = new Date(str);
   return Number.isNaN(d.getTime()) ? null : d;
 }

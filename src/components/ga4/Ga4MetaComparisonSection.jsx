@@ -27,29 +27,22 @@ function mergeByDate(metaDaily, ga4Daily) {
   return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
 }
 
-export default function Ga4MetaComparisonSection({ metaDaily, ga4Daily, usingFallbackMetric }) {
+const META_METRIC_LABEL = 'Landing page view (Meta)';
+
+export default function Ga4MetaComparisonSection({ metaDaily, ga4Daily }) {
   const merged = mergeByDate(metaDaily, ga4Daily);
 
   const totalMetaClicks = merged.reduce((acc, r) => acc + r.metaClicks, 0);
   const totalGa4Sessions = merged.reduce((acc, r) => acc + r.ga4Sessions, 0);
   const matchRate = totalMetaClicks > 0 ? (totalGa4Sessions / totalMetaClicks) * 100 : 0;
   const matchRateDisplay = totalMetaClicks > 0 ? formatPercent(matchRate) : '—';
-  const metaMetricLabel = usingFallbackMetric ? 'Click Meta Ads (fallback)' : 'Landing page view (Meta)';
 
   return (
     <div className="space-y-4 border-t border-[var(--border)] pt-6">
       <h2 className="text-base font-semibold text-[var(--text-primary)]">Confronto Meta Ads vs Google Analytics 4</h2>
 
-      {usingFallbackMetric && (
-        <p className="rounded-lg border border-[var(--series-4)]/40 bg-[var(--series-4)]/10 p-2 text-xs text-[var(--text-secondary)]">
-          Il foglio non riporta righe con action type "Visualizzazioni della pagina di destinazione": il confronto usa
-          tutti i risultati registrati (tipicamente click sul link), quindi il tasso sottostimerà la corrispondenza
-          reale rispetto a un confronto basato sulle landing page view.
-        </p>
-      )}
-
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <KpiCard label={metaMetricLabel} value={formatNumber(totalMetaClicks)} />
+        <KpiCard label={META_METRIC_LABEL} value={formatNumber(totalMetaClicks)} />
         <KpiCard label="Sessioni GA4" value={formatNumber(totalGa4Sessions)} />
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-4 shadow-sm">
           <span className="text-sm text-[var(--text-secondary)]">Tasso di corrispondenza</span>
@@ -65,7 +58,7 @@ export default function Ga4MetaComparisonSection({ metaDaily, ga4Daily, usingFal
       </p>
 
       <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-4">
-        <h3 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">{metaMetricLabel} vs sessioni GA4 (per giorno)</h3>
+        <h3 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">{META_METRIC_LABEL} vs sessioni GA4 (per giorno)</h3>
         <ResponsiveContainer width="100%" height={280}>
           <LineChart data={merged} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
             <CartesianGrid stroke="var(--grid)" vertical={false} />
@@ -79,10 +72,10 @@ export default function Ga4MetaComparisonSection({ metaDaily, ga4Daily, usingFal
             <Tooltip
               contentStyle={{ background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: 8 }}
               labelFormatter={(d) => formatDate(d)}
-              formatter={(value, name) => [formatNumber(value), name === 'metaClicks' ? metaMetricLabel : 'Sessioni GA4']}
+              formatter={(value, name) => [formatNumber(value), name === 'metaClicks' ? META_METRIC_LABEL : 'Sessioni GA4']}
             />
             <Legend
-              formatter={(name) => (name === 'metaClicks' ? metaMetricLabel : 'Sessioni GA4')}
+              formatter={(name) => (name === 'metaClicks' ? META_METRIC_LABEL : 'Sessioni GA4')}
               wrapperStyle={{ fontSize: 12 }}
             />
             <Line type="monotone" dataKey="metaClicks" stroke="var(--series-1)" strokeWidth={2} dot={{ r: 3 }} />

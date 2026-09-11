@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchCampaignCsv, DataServiceError } from '../dataService';
 import { fetchGa4Report, Ga4ServiceError } from '../ga4Service';
-import { DEFAULT_COLUMNS, DEFAULT_SPEND_SOURCE } from '../utils/columnConfig';
+import { DEFAULT_COLUMNS, DEFAULT_SPEND_SOURCE, toLegacyRecord } from '../utils/columnConfig';
 import {
   filterRecords,
   aggregateTotals,
   groupByReportDate,
   groupByCampaign,
   groupByActionType,
-  filterByActionKeyword,
-  LANDING_PAGE_VIEW_KEYWORDS,
 } from '../utils/metrics';
 import { formatDate } from '../utils/format';
 
@@ -56,7 +54,8 @@ export default function AdsPage() {
     setLoading(true);
     setError(null);
     try {
-      const { records: newRecords, anomalies: newAnomalies } = await fetchCampaignCsv(CSV_URL, DEFAULT_COLUMNS);
+      const { records: rawRecords, anomalies: newAnomalies } = await fetchCampaignCsv(CSV_URL, DEFAULT_COLUMNS);
+      const newRecords = rawRecords.map(toLegacyRecord);
       setRecords(newRecords);
       setAnomalies(newAnomalies);
       setLastUpdated(new Date());
@@ -68,9 +67,10 @@ export default function AdsPage() {
         }
       }
     } catch (err) {
+      // Non svuotiamo records/anomalies: se una fetch precedente era andata a
+      // buon fine, tabelle e grafici continuano a mostrare l'ultimo dato
+      // valido invece di sparire, con un avviso sopra a segnalare l'errore.
       setError(err instanceof DataServiceError ? err : new DataServiceError('unknown', err.message));
-      setRecords([]);
-      setAnomalies([]);
     } finally {
       setLoading(false);
     }
@@ -147,17 +147,11 @@ export default function AdsPage() {
 
   // Landing page view (Meta Ads) per giorno, nello stesso periodo del filtro
   // GA4: è la metrica più vicina a una sessione reale (esclude i click che
-  // non arrivano a caricare la pagina). Se il foglio non riporta righe con
-  // questo action type, si usano tutti i risultati (tipicamente click sul
-  // link) come fallback, segnalato in dashboard.
-  const metaLandingPageViewRecords = useMemo(
-    () => filterByActionKeyword(ga4PeriodRecords, LANDING_PAGE_VIEW_KEYWORDS),
-    [ga4PeriodRecords]
-  );
-  const metaLandingViewFallback = metaLandingPageViewRecords.length === 0 && ga4PeriodRecords.length > 0;
+  // non arrivano a caricare la pagina), letta direttamente dalla colonna
+  // "Landing page views" del foglio.
   const metaDailyLandingViews = useMemo(
-    () => groupByReportDate(metaLandingViewFallback ? ga4PeriodRecords : metaLandingPageViewRecords, DEFAULT_SPEND_SOURCE),
-    [metaLandingViewFallback, ga4PeriodRecords, metaLandingPageViewRecords]
+    () => groupByReportDate(ga4PeriodRecords, DEFAULT_SPEND_SOURCE).map((r) => ({ date: r.date, results: r.landingPageViews })),
+    [ga4PeriodRecords]
   );
 
   const ga4Totals = useMemo(
@@ -182,9 +176,14 @@ export default function AdsPage() {
       </p>
 
       {error && <ErrorPanel error={error} />}
+      {error && records.length > 0 && (
+        <p className="text-xs text-[var(--text-secondary)]">
+          Dati non disponibili in questo momento: la dashboard mostra l'ultimo aggiornamento riuscito ({formatDate(lastUpdated)}).
+        </p>
+      )}
       {loading && <Loader />}
 
-      {!loading && !error && records.length > 0 && (
+      {!loading && records.length > 0 && (
         <>
           <AnomaliesLog anomalies={anomalies} />
 
@@ -248,11 +247,7 @@ export default function AdsPage() {
           </div>
 
           {!ga4Loading && !ga4Error && (
-            <Ga4MetaComparisonSection
-              metaDaily={metaDailyLandingViews}
-              ga4Daily={ga4DailyRows}
-              usingFallbackMetric={metaLandingViewFallback}
-            />
+            <Ga4MetaComparisonSection metaDaily={metaDailyLandingViews} ga4Daily={ga4DailyRows} />
           )}
         </>
       )}
